@@ -225,6 +225,7 @@ with cm2:
         d_activos = df_f['Depto_Clean'].unique()
         d_calc = df_f.groupby('Depto_Clean')['Score_Operativo'].mean().to_dict()
         locs, cols, txts = [], [], []
+        
         for d in TODOS_DEPTOS_CLEAN:
             locs.append(d)
             sc = d_calc.get(d, 0) if d in d_activos else None
@@ -232,26 +233,34 @@ with cm2:
             txts.append(f"<b>{d.title()}</b><br>{f'{sc:.1f}%' if sc is not None else 'N/A'}")
             
         fig_m = go.Figure(go.Choropleth(geojson=geojson_gt, locations=locs, featureidkey="id", z=list(range(len(locs))), text=txts, hoverinfo='text', showscale=False, marker_line_color='#666666', marker_line_width=1.2))
-        fig_m.data[0].colorscale = [[i/len(locs), c] for i, c in enumerate(cols)] + [[(i+1)/len(locs), c] for i, c in enumerate(cols)]
+        
+        # Corrección exacta del Colorscale para Plotly (evita que se vuelva azul)
+        discrete_colorscale = []
+        n = len(locs)
+        for i, c in enumerate(cols):
+            discrete_colorscale.append([i / n, c])
+            discrete_colorscale.append([(i + 1) / n, c])
+            
+        fig_m.data[0].colorscale = discrete_colorscale
         fig_m.update_geos(fitbounds="locations", visible=False, bgcolor='rgba(0,0,0,0)')
         fig_m.update_layout(height=310, margin={"r":0, "t":0, "l":0, "b":0}, dragmode=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
         
-        # Mapa blindado sin zoom/scroll y con llave única
         ev_m = st.plotly_chart(fig_m, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False}, key="mapa_geo", on_select="rerun")
         if ev_m and ev_m.selection.get("points"):
             sel_d = ev_m.selection["points"][0]["location"].title()
             if sel_d.upper() == 'QUETZALTENANGO': sel_d = 'Quetzaltenango'
             if sel_d != st.session_state.depto_seleccionado: st.session_state.depto_seleccionado = sel_d; st.rerun()
 
+# Nueva Leyenda Minimalista (sin fondo gris pesado)
 st.markdown("""
-<div style="display: flex; justify-content: center; align-items: center; gap: 20px; font-size: 14px; background-color: #1E1E1E; padding: 10px; border-radius: 10px;">
-    <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 15px; height: 15px; background-color: #E74C3C; border-radius: 50%;"></div> 0 - 50% (Crítico)</div>
-    <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 15px; height: 15px; background-color: #F1C40F; border-radius: 50%;"></div> 51 - 70% (Alerta)</div>
-    <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 15px; height: 15px; background-color: #7DCEA0; border-radius: 50%;"></div> 71 - 90% (Estable)</div>
-    <div style="display: flex; align-items: center; gap: 5px;"><div style="width: 15px; height: 15px; background-color: #1E8449; border-radius: 50%;"></div> 91 - 100% (Excelente)</div>
+<div style="display: flex; justify-content: center; gap: 25px; font-size: 13px; color: #CCCCCC; margin-top: -10px; margin-bottom: 20px;">
+    <span style="display: flex; align-items: center; gap: 6px;"><div style="width: 12px; height: 12px; background-color: #E74C3C; border-radius: 50%;"></div> Crítico (0-50%)</span>
+    <span style="display: flex; align-items: center; gap: 6px;"><div style="width: 12px; height: 12px; background-color: #F1C40F; border-radius: 50%;"></div> Alerta (51-70%)</span>
+    <span style="display: flex; align-items: center; gap: 6px;"><div style="width: 12px; height: 12px; background-color: #7DCEA0; border-radius: 50%;"></div> Estable (71-90%)</span>
+    <span style="display: flex; align-items: center; gap: 6px;"><div style="width: 12px; height: 12px; background-color: #1E8449; border-radius: 50%;"></div> Excelente (91-100%)</span>
+    <span style="display: flex; align-items: center; gap: 6px;"><div style="width: 12px; height: 12px; background-color: #D3D3D3; border-radius: 50%;"></div> Sin Datos</span>
 </div>
 """, unsafe_allow_html=True)
-st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("---")
 
 # ==========================================
@@ -298,7 +307,7 @@ with ct2:
 st.markdown("---")
 
 # ==========================================
-# 6. EVOLUTIVO DE TIENDA INDIVIDUAL (Agregado)
+# 6. EVOLUTIVO DE TIENDA INDIVIDUAL 
 # ==========================================
 if st.session_state.tienda_seleccionada:
     st.subheader(f"🔍 Drill-Down de Sucursal: {st.session_state.tienda_seleccionada}")
@@ -385,7 +394,7 @@ fig_c.update_layout(bargap=0.3, height=350, margin=dict(l=50, r=50, t=30, b=10),
 st.plotly_chart(fig_c, use_container_width=True, key="chart_calidad")
 
 # ==========================================
-# 9. FEEDBACK CUALITATIVO (Para la tienda seleccionada)
+# 9. FEEDBACK CUALITATIVO
 # ==========================================
 if st.session_state.tienda_seleccionada:
     st.markdown("---"); st.markdown(f"### 📋 Bitácora de Visitas: {st.session_state.tienda_seleccionada}")
