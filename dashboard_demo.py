@@ -46,22 +46,25 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- LOGO FIRMA BASE64 ---
+# --- LOGO FIRMA BASE64 (FOOTER) ---
 def get_base64_img(file_path):
     if os.path.exists(file_path):
         with open(file_path, "rb") as f:
             return base64.b64encode(f.read()).decode()
     return None
 
-logo_strat_b64 = get_base64_img("logo_strategia.png") or get_base64_img("logo_strategia.jpg")
+# Se actualizó el nombre para el logo del footer
+logo_strat_b64 = get_base64_img("Strategia-Logo-Alta-07.png") or get_base64_img("Strategia-Logo-Alta-07.jpg")
 img_tag = f'<img src="data:image/png;base64,{logo_strat_b64}" style="height: 20px; vertical-align: middle;">' if logo_strat_b64 else ''
 
 st.markdown(f'<div class="footer-custom">Powered by stratēgia {img_tag} | Inteligencia de Negocios</div>', unsafe_allow_html=True)
 
-# --- ENCABEZADO PRINCIPAL ---
+# --- ENCABEZADO PRINCIPAL (HEADER) ---
 col_logo, col_titulo = st.columns([1, 4])
 with col_logo: 
-    if os.path.exists("logo.png"): st.image("logo.png", use_container_width=True)
+    # Se actualizó el nombre para el logo principal
+    if os.path.exists("Strategia-Logo-Alta-02.png"): st.image("Strategia-Logo-Alta-02.png", use_container_width=True)
+    elif os.path.exists("Strategia-Logo-Alta-02.jpg"): st.image("Strategia-Logo-Alta-02.jpg", use_container_width=True)
     else: st.markdown("**(🛒 Demo Logo)**")
         
 with col_titulo: 
