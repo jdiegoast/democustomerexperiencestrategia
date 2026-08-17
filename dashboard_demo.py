@@ -274,29 +274,18 @@ if api_key:
         Tono: Ejecutivo, empático pero directo. Nada de lenguaje robótico, ni saludos. Ve al grano.
         """
         
-        # Bloque Blindado de Solicitud a la API
+        # USA DIRECTAMENTE EL MODELO CONFIRMADO POR EL AUTO-DIAGNÓSTICO
         try:
-            # Intento 1: Usamos la versión estable más reciente si Streamlit la actualizó correctamente
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            respuesta = model.generate_content(prompt)
+            return respuesta.text
+        except:
             try:
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                model = genai.GenerativeModel('gemini-flash-latest')
                 respuesta = model.generate_content(prompt)
                 return respuesta.text
-            except:
-                # Intento 2: Si falló la 1.5, intentamos con la versión 1.0 que nunca falla
-                model = genai.GenerativeModel('gemini-pro')
-                respuesta = model.generate_content(prompt)
-                return respuesta.text
-                
-        except Exception as e:
-            # Si ambos intentos fallan, generamos una lista de qué modelos te permite usar Google
-            modelos_permitidos = []
-            try:
-                for m in genai.list_models():
-                    if 'generateContent' in m.supported_generation_methods:
-                        modelos_permitidos.append(m.name)
-            except:
-                pass
-            return f"Hubo un problema. Detalles: {str(e)}. Modelos permitidos en tu llave: {modelos_permitidos}"
+            except Exception as e:
+                return f"Error en generación: {str(e)}"
 
     # Botón en la interfaz
     if st.button("✨ Generar Sugerencias AI para esta vista", type="primary"):
