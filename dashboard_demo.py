@@ -216,21 +216,20 @@ api_key = st.secrets.get("GEMINI_API_KEY", None)
 if api_key:
     genai.configure(api_key=api_key)
 
-    # NUEVO CSS: Garantiza que el relleno sea fondo sólido dependiendo del modo, 
-    # y el gradiente ultra pastel SÓLO aplique al borde (padding-box)
+    # NUEVO CSS: Gradiente NEÓN vibrante pero elegante
     st.markdown("""
     <style>
     .ai-gradient-border {
-        /* Borde ultra pastel mágico */
-        background: linear-gradient(135deg, #E6D4FF 0%, #CDE8FF 30%, #D4F7E8 70%, #FFDCEB 100%);
-        padding: 3px; /* Este es el grosor del contorno */
+        /* Gradiente Intenso Premium: Fucsia -> Morado -> Azul -> Cian */
+        background: linear-gradient(135deg, #FF3366 0%, #9C27B0 33%, #2196F3 66%, #00E5FF 100%);
+        padding: 4px; /* Un poco más de grosor para que destaque el color */
         border-radius: 12px;
         margin-bottom: 25px;
         margin-top: 15px;
     }
     
     .ai-inner-box {
-        border-radius: 9px; /* Un poco menos que el contorno para que encaje perfecto */
+        border-radius: 9px;
         padding: 20px;
         font-size: 14.5px;
         line-height: 1.6;
@@ -283,24 +282,13 @@ if api_key:
         """
         
         try:
-            # RUTINA A PRUEBA DE FALLOS: Busca un modelo que sí exista en tu cuenta
-            modelo_valido = None
-            for m in genai.list_models():
-                if 'generateContent' in m.supported_generation_methods:
-                    modelo_valido = m.name
-                    # Preferimos siempre la versión 1.5-flash porque es la más rápida
-                    if '1.5-flash' in m.name: 
-                        break
-            
-            if not modelo_valido:
-                modelo_valido = 'models/gemini-1.5-flash'
-                
-            model = genai.GenerativeModel(modelo_valido)
+            # Forzamos directamente el modelo gemini-1.5-flash (requiere google-generativeai>=0.7.0)
+            model = genai.GenerativeModel('gemini-1.5-flash')
             respuesta = model.generate_content(prompt)
             return respuesta.text
             
         except Exception as e:
-            return f"Hubo un problema conectando con la IA. Detalle técnico: {str(e)}"
+            return f"Hubo un problema conectando con la IA. Asegúrate de haber actualizado requirements.txt. Detalle técnico: {str(e)}"
 
     # Botón en la interfaz
     if st.button("✨ Generar Sugerencias AI para esta vista", type="primary"):
