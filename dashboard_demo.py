@@ -23,7 +23,7 @@ st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
     .footer-custom { position: fixed; left: 0; bottom: 0; width: 100%; background-color: #0e1117; color: #A0A0A0; text-align: center; padding: 8px 10px; font-size: 13px; font-weight: bold; z-index: 1000; border-top: 1px solid #262730; display: flex; justify-content: center; align-items: center; gap: 10px;}
-    .sticky-header { position: sticky; top: 0; background-color: #0e1117; z-index: 999; padding: 10px 0px; border-bottom: 3px solid #0A1B3F; }
+    .sticky-header { position: sticky; top: 0; background-color: var(--background-color); z-index: 999; padding: 10px 0px; border-bottom: 3px solid #0A1B3F; }
     .journey-container { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: -10px; margin-top: 5px; }
     .j-step, .c-step { flex: 1; color: #1A252C; padding: 10px 0px; text-align: center; font-size: 13px; font-weight: 800; margin-right: 4px; }
     
@@ -216,32 +216,35 @@ api_key = st.secrets.get("GEMINI_API_KEY", None)
 
 if api_key:
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # Cambiamos a 'gemini-pro' que es el modelo más estable y compatible universalmente
+    model = genai.GenerativeModel('gemini-pro')
 
-    # CSS para el cuadro mágico
+    # CSS mejorado: Gradiente más suave/pastel y colores dinámicos (Claro/Oscuro)
     st.markdown("""
     <style>
     .ai-gradient-box {
         position: relative;
         padding: 4px; 
-        background: linear-gradient(180deg, #A9DFBF 0%, #AED6F1 30%, #D2B4DE 60%, #F5B7B1 100%);
+        /* Tonos pastel: Morado, Celeste, Menta, Rosa */
+        background: linear-gradient(135deg, #B588F7 0%, #75BCF6 30%, #90F0C9 70%, #F9A8D4 100%);
         border-radius: 12px;
         margin-bottom: 25px;
         margin-top: 15px;
     }
     .ai-content {
-        background-color: #0e1117;
-        color: #E0E0E0;
+        /* Usamos variables nativas para que se adapte al modo oscuro o claro del usuario */
+        background-color: var(--background-color);
+        color: var(--text-color);
         padding: 20px;
         border-radius: 9px;
-        font-size: 14px;
+        font-size: 14.5px;
         line-height: 1.6;
     }
     .ai-title {
-        color: #F7DC6F;
-        font-weight: bold;
+        color: var(--text-color);
+        font-weight: 800;
         font-size: 16px;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
         display: flex;
         align-items: center;
         gap: 8px;
@@ -283,7 +286,6 @@ if api_key:
         try:
             respuesta = model.generate_content(prompt)
             return respuesta.text
-        # AQUÍ ES DONDE ATRAPAMOS EL ERROR REAL:
         except Exception as e:
             return f"Hubo un problema conectando con la IA. Detalle técnico: {str(e)}"
 
