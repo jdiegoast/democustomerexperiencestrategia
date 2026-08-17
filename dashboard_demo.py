@@ -191,8 +191,8 @@ if not f_sector: st.session_state.sector_seleccionado = None
 if not f_depto: st.session_state.depto_seleccionado = None
 
 df_f = df[df['Mes_Nombre'].isin(f_mes) & df['Año'].isin(f_ano)]
-except Exception as e:
-            return f"Hubo un problema conectando con la IA. Detalle técnico: {str(e)}"
+if f_depto: df_f = df_f[df_f['Departamento'].isin(f_depto)]
+if f_sector: df_f = df_f[df_f['Sector sucursal'].isin(f_sector)]
 if f_tiendas_sel: df_f = df_f[df_f['Nombre_Grafica'].isin(f_tiendas_sel)]
 
 with c6:
@@ -283,8 +283,9 @@ if api_key:
         try:
             respuesta = model.generate_content(prompt)
             return respuesta.text
-        except Exception:
-            return "Hubo un problema conectando con la IA. Por favor intenta nuevamente."
+        # AQUÍ ES DONDE ATRAPAMOS EL ERROR REAL:
+        except Exception as e:
+            return f"Hubo un problema conectando con la IA. Detalle técnico: {str(e)}"
 
     # Botón en la interfaz
     if st.button("✨ Generar Sugerencias AI para esta vista", type="primary"):
