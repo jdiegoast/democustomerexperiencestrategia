@@ -234,7 +234,7 @@ with cm2:
             
         fig_m = go.Figure(go.Choropleth(geojson=geojson_gt, locations=locs, featureidkey="id", z=list(range(len(locs))), text=txts, hoverinfo='text', showscale=False, marker_line_color='#666666', marker_line_width=1.2))
         
-        # Corrección exacta del Colorscale para Plotly (evita que se vuelva azul)
+        # Corrección del Colorscale
         discrete_colorscale = []
         n = len(locs)
         for i, c in enumerate(cols):
@@ -247,11 +247,14 @@ with cm2:
         
         ev_m = st.plotly_chart(fig_m, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False}, key="mapa_geo", on_select="rerun")
         if ev_m and ev_m.selection.get("points"):
-            sel_d = ev_m.selection["points"][0]["location"].title()
-            if sel_d.upper() == 'QUETZALTENANGO': sel_d = 'Quetzaltenango'
-            if sel_d != st.session_state.depto_seleccionado: st.session_state.depto_seleccionado = sel_d; st.rerun()
+            raw_loc = ev_m.selection["points"][0]["location"] # e.g. "PETEN"
+            # Buscar el nombre real con tilde en el dataframe
+            matched_row = df_f[df_f['Depto_Clean'] == raw_loc]
+            sel_d = matched_row['Departamento'].iloc[0] if not matched_row.empty else raw_loc.title()
+            if sel_d != st.session_state.depto_seleccionado: 
+                st.session_state.depto_seleccionado = sel_d
+                st.rerun()
 
-# Nueva Leyenda Minimalista (sin fondo gris pesado)
 st.markdown("""
 <div style="display: flex; justify-content: center; gap: 25px; font-size: 13px; color: #CCCCCC; margin-top: -10px; margin-bottom: 20px;">
     <span style="display: flex; align-items: center; gap: 6px;"><div style="width: 12px; height: 12px; background-color: #E74C3C; border-radius: 50%;"></div> Crítico (0-50%)</span>
