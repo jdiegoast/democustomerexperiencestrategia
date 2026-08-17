@@ -8,6 +8,7 @@ import json
 import os
 import unicodedata
 import base64
+import google.generativeai as genai
 
 # ==========================================
 # 1. CONFIGURACIÓN E INTERFAZ DE USUARIO
@@ -64,7 +65,7 @@ with col_titulo:
 def normalizar_cadena(texto):
     s = str(texto).strip().upper()
     s = ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
-    if 'QUEZAL' in s or 'QUETZAL' in s: return 'QUETZALTENANGO' # Fuerza el match de Xela
+    if 'QUEZAL' in s or 'QUETZAL' in s: return 'QUETZALTENANGO'
     return s
 
 @st.cache_data(ttl=3600)
@@ -208,6 +209,100 @@ if df_f.empty: st.info("Ajusta los filtros."); st.stop()
 promedio = df_f['Score_Operativo'].mean()
 
 # ==========================================
+# 3.5 MÓDULO WOW: SUGERENCIAS AI (GEMINI)
+# ==========================================
+# Intentar leer la llave secreta
+api_key = st.secrets.get("GEMINI_API_KEY", None)
+
+if api_key:
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+
+    # CSS para el cuadro mágico
+    st.markdown("""
+    <style>
+    .ai-gradient-box {
+        position: relative;
+        padding: 4px; 
+        background: linear-gradient(180deg, #A9DFBF 0%, #AED6F1 30%, #D2B4DE 60%, #F5B7B1 100%);
+        border-radius: 12px;
+        margin-bottom: 25px;
+        margin-top: 15px;
+    }
+    .ai-content {
+        background-color: #0e1117;
+        color: #E0E0E0;
+        padding: 20px;
+        border-radius: 9px;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    .ai-title {
+        color: #F7DC6F;
+        font-weight: bold;
+        font-size: 16px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    def generar_sugerencias_ai(df_filtrado, depto, sector, tienda):
+        nivel = "General (Todas las tiendas)"
+        if tienda: nivel = f"Tienda Específica: {tienda[0]}"
+        elif sector: nivel = f"Sector: {sector[0]}"
+        elif depto: nivel = f"Departamento: {depto[0]}"
+
+        j_keys_ai = list(k_journey.keys())
+        c_keys_ai = list(k_calidad.keys())
+        
+        try:
+            j_bajos = df_filtrado[[f'JOURNEY_{k}' for k in j_keys_ai if f'JOURNEY_{k}' in df_filtrado.columns]].mean().nsmallest(2).to_dict()
+            c_bajos = df_filtrado[[f'CALIDAD_{k}' for k in c_keys_ai if f'CALIDAD_{k}' in df_filtrado.columns]].mean().nsmallest(2).to_dict()
+        except:
+            j_bajos, c_bajos = {}, {}
+            
+        comentarios = df_filtrado['Comentarios'].dropna().tail(3).tolist()
+
+        prompt = f"""
+        Actúa como un Consultor Retail Senior experto en Customer Experience.
+        Estás analizando la métrica de un tablero de Mystery Shopper a nivel: {nivel}.
+        
+        DATOS DUROS (Calidad/Limpieza - peores áreas): {c_bajos}
+        DATOS BLANDOS (Actitud/Servicio - peores áreas): {j_bajos}
+        ÚLTIMOS COMENTARIOS (Voces reales): {comentarios}
+        
+        INSTRUCCIÓN: Redacta un párrafo corto y fluido (máximo 4 oraciones) dirigido al gerente. 
+        1. Menciona un aspecto técnico/duro a mejorar.
+        2. Menciona un aspecto de habilidades blandas/humanas (cómo hacen sentir al cliente).
+        3. Dame una recomendación de acción inmediata muy específica y de gran valor.
+        Tono: Ejecutivo, empático pero directo. Nada de lenguaje robótico, ni saludos. Ve al grano.
+        """
+        try:
+            respuesta = model.generate_content(prompt)
+            return respuesta.text
+        except Exception:
+            return "Hubo un problema conectando con la IA. Por favor intenta nuevamente."
+
+    # Botón en la interfaz
+    if st.button("✨ Generar Sugerencias AI para esta vista", type="primary"):
+        with st.spinner("Analizando métricas y leyendo entre líneas..."):
+            sugerencia = generar_sugerencias_ai(df_f, f_depto, f_sector, f_tiendas_sel)
+            titulo_lugar = f_tiendas_sel[0] if f_tiendas_sel else (f_sector[0] if f_sector else (f_depto[0] if f_depto else 'Resumen Global'))
+            
+            st.markdown(f"""
+            <div class="ai-gradient-box">
+                <div class="ai-content">
+                    <div class="ai-title">✨ Sugerencias stratēgia AI para: {titulo_lugar}</div>
+                    {sugerencia}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+
+# ==========================================
 # 4. MACRO, MAPA Y LEYENDA COLORIMETRÍA
 # ==========================================
 cm1, cm2 = st.columns([1, 2])
@@ -234,7 +329,6 @@ with cm2:
             
         fig_m = go.Figure(go.Choropleth(geojson=geojson_gt, locations=locs, featureidkey="id", z=list(range(len(locs))), text=txts, hoverinfo='text', showscale=False, marker_line_color='#666666', marker_line_width=1.2))
         
-        # Corrección del Colorscale
         discrete_colorscale = []
         n = len(locs)
         for i, c in enumerate(cols):
@@ -247,8 +341,7 @@ with cm2:
         
         ev_m = st.plotly_chart(fig_m, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False}, key="mapa_geo", on_select="rerun")
         if ev_m and ev_m.selection.get("points"):
-            raw_loc = ev_m.selection["points"][0]["location"] # e.g. "PETEN"
-            # Buscar el nombre real con tilde en el dataframe
+            raw_loc = ev_m.selection["points"][0]["location"] 
             matched_row = df_f[df_f['Depto_Clean'] == raw_loc]
             sel_d = matched_row['Departamento'].iloc[0] if not matched_row.empty else raw_loc.title()
             if sel_d != st.session_state.depto_seleccionado: 
