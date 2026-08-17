@@ -216,32 +216,25 @@ api_key = st.secrets.get("GEMINI_API_KEY", None)
 if api_key:
     genai.configure(api_key=api_key)
 
-    # NUEVO CSS: Gradiente NEÓN vibrante pero elegante
     st.markdown("""
     <style>
     .ai-gradient-border {
-        /* Gradiente Intenso Premium: Fucsia -> Morado -> Azul -> Cian */
         background: linear-gradient(135deg, #FF3366 0%, #9C27B0 33%, #2196F3 66%, #00E5FF 100%);
-        padding: 4px; /* Un poco más de grosor para que destaque el color */
+        padding: 4px;
         border-radius: 12px;
         margin-bottom: 25px;
         margin-top: 15px;
     }
-    
     .ai-inner-box {
         border-radius: 9px;
         padding: 20px;
         font-size: 14.5px;
         line-height: 1.6;
     }
-    
-    /* Regla obligatoria para el Modo Oscuro */
     @media (prefers-color-scheme: dark) {
         .ai-inner-box { background-color: #0e1117; color: #E0E0E0; }
         .ai-title { color: #F7DC6F; font-weight: 800; font-size: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;}
     }
-    
-    /* Regla obligatoria para el Modo Claro */
     @media (prefers-color-scheme: light) {
         .ai-inner-box { background-color: #FFFFFF; color: #31333F; }
         .ai-title { color: #F5B041; font-weight: 800; font-size: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;}
@@ -281,14 +274,29 @@ if api_key:
         Tono: Ejecutivo, empático pero directo. Nada de lenguaje robótico, ni saludos. Ve al grano.
         """
         
+        # Bloque Blindado de Solicitud a la API
         try:
-            # Forzamos directamente el modelo gemini-1.5-flash (requiere google-generativeai>=0.7.0)
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            respuesta = model.generate_content(prompt)
-            return respuesta.text
-            
+            # Intento 1: Usamos la versión estable más reciente si Streamlit la actualizó correctamente
+            try:
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                respuesta = model.generate_content(prompt)
+                return respuesta.text
+            except:
+                # Intento 2: Si falló la 1.5, intentamos con la versión 1.0 que nunca falla
+                model = genai.GenerativeModel('gemini-pro')
+                respuesta = model.generate_content(prompt)
+                return respuesta.text
+                
         except Exception as e:
-            return f"Hubo un problema conectando con la IA. Asegúrate de haber actualizado requirements.txt. Detalle técnico: {str(e)}"
+            # Si ambos intentos fallan, generamos una lista de qué modelos te permite usar Google
+            modelos_permitidos = []
+            try:
+                for m in genai.list_models():
+                    if 'generateContent' in m.supported_generation_methods:
+                        modelos_permitidos.append(m.name)
+            except:
+                pass
+            return f"Hubo un problema. Detalles: {str(e)}. Modelos permitidos en tu llave: {modelos_permitidos}"
 
     # Botón en la interfaz
     if st.button("✨ Generar Sugerencias AI para esta vista", type="primary"):
