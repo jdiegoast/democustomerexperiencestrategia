@@ -23,7 +23,7 @@ st.markdown("""
     <style>
     #MainMenu {visibility: hidden;} footer {visibility: hidden;}
     .footer-custom { position: fixed; left: 0; bottom: 0; width: 100%; background-color: #0e1117; color: #A0A0A0; text-align: center; padding: 8px 10px; font-size: 13px; font-weight: bold; z-index: 1000; border-top: 1px solid #262730; display: flex; justify-content: center; align-items: center; gap: 10px;}
-    .sticky-header { position: sticky; top: 0; background-color: var(--background-color); z-index: 999; padding: 10px 0px; border-bottom: 3px solid #0A1B3F; }
+    .sticky-header { position: sticky; top: 0; background-color: inherit; z-index: 999; padding: 10px 0px; border-bottom: 3px solid #0A1B3F; }
     .journey-container { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: -10px; margin-top: 5px; }
     .j-step, .c-step { flex: 1; color: #1A252C; padding: 10px 0px; text-align: center; font-size: 13px; font-weight: 800; margin-right: 4px; }
     
@@ -211,43 +211,41 @@ promedio = df_f['Score_Operativo'].mean()
 # ==========================================
 # 3.5 MÓDULO WOW: SUGERENCIAS AI (GEMINI)
 # ==========================================
-# Intentar leer la llave secreta
 api_key = st.secrets.get("GEMINI_API_KEY", None)
 
 if api_key:
     genai.configure(api_key=api_key)
-    # Cambiamos a 'gemini-pro' que es el modelo más estable y compatible universalmente
-    model = genai.GenerativeModel('gemini-pro')
 
-    # CSS mejorado: Gradiente más suave/pastel y colores dinámicos (Claro/Oscuro)
+    # NUEVO CSS: Garantiza que el relleno sea fondo sólido dependiendo del modo, 
+    # y el gradiente ultra pastel SÓLO aplique al borde (padding-box)
     st.markdown("""
     <style>
-    .ai-gradient-box {
-        position: relative;
-        padding: 4px; 
-        /* Tonos pastel: Morado, Celeste, Menta, Rosa */
-        background: linear-gradient(135deg, #B588F7 0%, #75BCF6 30%, #90F0C9 70%, #F9A8D4 100%);
+    .ai-gradient-border {
+        /* Borde ultra pastel mágico */
+        background: linear-gradient(135deg, #E6D4FF 0%, #CDE8FF 30%, #D4F7E8 70%, #FFDCEB 100%);
+        padding: 3px; /* Este es el grosor del contorno */
         border-radius: 12px;
         margin-bottom: 25px;
         margin-top: 15px;
     }
-    .ai-content {
-        /* Usamos variables nativas para que se adapte al modo oscuro o claro del usuario */
-        background-color: var(--background-color);
-        color: var(--text-color);
+    
+    .ai-inner-box {
+        border-radius: 9px; /* Un poco menos que el contorno para que encaje perfecto */
         padding: 20px;
-        border-radius: 9px;
         font-size: 14.5px;
         line-height: 1.6;
     }
-    .ai-title {
-        color: var(--text-color);
-        font-weight: 800;
-        font-size: 16px;
-        margin-bottom: 12px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
+    
+    /* Regla obligatoria para el Modo Oscuro */
+    @media (prefers-color-scheme: dark) {
+        .ai-inner-box { background-color: #0e1117; color: #E0E0E0; }
+        .ai-title { color: #F7DC6F; font-weight: 800; font-size: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;}
+    }
+    
+    /* Regla obligatoria para el Modo Claro */
+    @media (prefers-color-scheme: light) {
+        .ai-inner-box { background-color: #FFFFFF; color: #31333F; }
+        .ai-title { color: #F5B041; font-weight: 800; font-size: 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;}
     }
     </style>
     """, unsafe_allow_html=True)
@@ -283,9 +281,24 @@ if api_key:
         3. Dame una recomendación de acción inmediata muy específica y de gran valor.
         Tono: Ejecutivo, empático pero directo. Nada de lenguaje robótico, ni saludos. Ve al grano.
         """
+        
         try:
+            # RUTINA A PRUEBA DE FALLOS: Busca un modelo que sí exista en tu cuenta
+            modelo_valido = None
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods:
+                    modelo_valido = m.name
+                    # Preferimos siempre la versión 1.5-flash porque es la más rápida
+                    if '1.5-flash' in m.name: 
+                        break
+            
+            if not modelo_valido:
+                modelo_valido = 'models/gemini-1.5-flash'
+                
+            model = genai.GenerativeModel(modelo_valido)
             respuesta = model.generate_content(prompt)
             return respuesta.text
+            
         except Exception as e:
             return f"Hubo un problema conectando con la IA. Detalle técnico: {str(e)}"
 
@@ -296,14 +309,13 @@ if api_key:
             titulo_lugar = f_tiendas_sel[0] if f_tiendas_sel else (f_sector[0] if f_sector else (f_depto[0] if f_depto else 'Resumen Global'))
             
             st.markdown(f"""
-            <div class="ai-gradient-box">
-                <div class="ai-content">
+            <div class="ai-gradient-border">
+                <div class="ai-inner-box">
                     <div class="ai-title">✨ Sugerencias stratēgia AI para: {titulo_lugar}</div>
                     {sugerencia}
                 </div>
             </div>
             """, unsafe_allow_html=True)
-
 
 # ==========================================
 # 4. MACRO, MAPA Y LEYENDA COLORIMETRÍA
