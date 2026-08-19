@@ -274,7 +274,7 @@ if api_key:
         Tono: Ejecutivo, empático pero directo. Nada de lenguaje robótico, ni saludos. Ve al grano.
         """
         
-        # USA DIRECTAMENTE EL MODELO CONFIRMADO POR EL AUTO-DIAGNÓSTICO
+        # Bloque Blindado de Solicitud a la API con Escudo UX
         try:
             model = genai.GenerativeModel('gemini-2.5-flash')
             respuesta = model.generate_content(prompt)
@@ -285,7 +285,13 @@ if api_key:
                 respuesta = model.generate_content(prompt)
                 return respuesta.text
             except Exception as e:
-                return f"Error en generación: {str(e)}"
+                error_msg = str(e)
+                # ESCUDO UX: Si es un error 429 (Límite de cuota gratuita)
+                if "429" in error_msg or "quota" in error_msg.lower():
+                    return "⏳ **stratēgia AI está procesando un alto volumen de datos en este momento.** Por favor, espera unos 30 segundos y vuelve a hacer clic en generar."
+                # ESCUDO UX: Para cualquier otro error técnico
+                else:
+                    return "⚠️ **Consultor AI no disponible temporalmente.** Tuvimos un pequeño contratiempo de conexión, por favor intenta de nuevo."
 
     # Botón en la interfaz
     if st.button("✨ Generar Sugerencias AI para esta vista", type="primary"):
