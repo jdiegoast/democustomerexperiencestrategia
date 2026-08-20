@@ -530,12 +530,25 @@ j_scores = [df_f[f'JOURNEY_{k}'].mean() if f'JOURNEY_{k}' in df_f.columns else f
 st.markdown(render_chevrons(j_keys, 'j'), unsafe_allow_html=True)
 fig_j = go.Figure()
 fig_j.add_trace(go.Scatter(x=j_keys, y=[s if not pd.isna(s) else 0 for s in j_scores], mode='lines', line=dict(color='#BDC3C7', width=4), hoverinfo='none'))
+
 for x, y, c, e in zip(j_keys, j_scores, [color_semaforo(s) for s in j_scores], [emoji_semaforo(s) for s in j_scores]):
     y_val = y if not pd.isna(y) else 0
     fig_j.add_trace(go.Scatter(x=[x], y=[y_val], mode='markers', marker=dict(size=48, color=c, line=dict(width=2, color='white')), hoverinfo='y'))
     fig_j.add_annotation(x=x, y=y_val, text=e, font=dict(size=28), showarrow=False, xanchor='center', yanchor='middle')
-fig_j.update_layout(height=320, margin=dict(l=50, r=50, t=30, b=10), showlegend=False, xaxis=dict(showgrid=False, zeroline=False, showticklabels=False), yaxis=dict(range=[0,120], showgrid=True), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+
+# Ajuste del rango máximo a 105 para evitar la línea del 120, manteniendo el emoji visible
+fig_j.update_layout(height=320, margin=dict(l=50, r=50, t=30, b=10), showlegend=False, xaxis=dict(showgrid=False, zeroline=False, showticklabels=False), yaxis=dict(range=[0,105], showgrid=True), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
 st.plotly_chart(fig_j, use_container_width=True, key="chart_journey")
+
+# Termómetro emocional
+st.markdown("""
+<div style="display: flex; justify-content: center; gap: 25px; font-size: 13px; color: #CCCCCC; margin-top: 10px; margin-bottom: 25px;">
+    <span style="display: flex; align-items: center; gap: 6px;"><div style="width: 12px; height: 12px; background-color: #E74C3C; border-radius: 50%;"></div> 😡 Frustración (0-50%)</span>
+    <span style="display: flex; align-items: center; gap: 6px;"><div style="width: 12px; height: 12px; background-color: #F1C40F; border-radius: 50%;"></div> 😕 Indiferente (51-70%)</span>
+    <span style="display: flex; align-items: center; gap: 6px;"><div style="width: 12px; height: 12px; background-color: #7DCEA0; border-radius: 50%;"></div> 🙂 Feliz (71-90%)</span>
+    <span style="display: flex; align-items: center; gap: 6px;"><div style="width: 12px; height: 12px; background-color: #1E8449; border-radius: 50%;"></div> 😃 Encantado (91-100%)</span>
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown("---")
 st.subheader("Variables de Calidad por Punto de Contacto")
