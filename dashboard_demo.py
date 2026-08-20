@@ -213,9 +213,72 @@ promedio = df_f['Score_Operativo'].mean()
 # ==========================================
 api_key = st.secrets.get("GEMINI_API_KEY", None)
 
-if api_key:
-    genai.configure(api_key=api_key)
+def cargar_manual_cx():
+    """Lee las reglas de negocio base desde GitHub (archivo local)"""
+    try:
+        if os.path.exists("manual_cx_strategia.txt"):
+            with open("manual_cx_strategia.txt", "r", encoding="utf-8") as f:
+                return f.read()
+    except Exception:
+        pass
+    return "Eres un Consultor Senior experto en CX. Analiza los datos y da una recomendación práctica."
 
+def obtener_datos_ia(df_completo, depto, sector, tienda):
+    """Extrae los parámetros más granulares y su tendencia histórica para la IA"""
+    df_entidad = df_completo.copy()
+    if tienda: df_entidad = df_entidad[df_entidad['Nombre_Grafica'].isin(tienda)]
+    elif sector: df_entidad = df_entidad[df_entidad['Sector sucursal'].isin(sector)]
+    elif depto: df_entidad = df_entidad[df_entidad['Departamento'].isin(depto)]
+
+    preguntas_cols = list(mapa_columnas_limpias.values())
+    preguntas_existentes = [c for c in preguntas_cols if c in df_entidad.columns]
+
+    df_entidad = df_entidad.dropna(subset=['Fecha']).sort_values('Fecha')
+    if df_entidad.empty: return "Sin datos suficientes.", []
+
+    # Agrupar cronológicamente por mes
+    df_tendencia = df_entidad.groupby(df_entidad['Fecha'].dt.to_period('M'))[preguntas_existentes].mean() * 100
+    df_tendencia = df_tendencia.dropna(how='all') 
+
+    if len(df_tendencia) == 0: return "Sin datos suficientes.", []
+
+    ultimo_mes = df_tendencia.iloc[-1].dropna()
+    if ultimo_mes.empty: return "Sin datos suficientes este mes.", []
+
+    # Buscar las 3 peores preguntas específicas
+    peores_3 = ultimo_mes.nsmallest(3)
+    datos_duros = []
+    
+    for preg, score in peores_3.items():
+        if len(df_tendencia) >= 2:
+            historico = df_tendencia[preg].iloc[:-1].dropna()
+            if len(historico) > 0:
+                score_previo = historico.tail(2).mean() # Promedio de hasta los 2 meses anteriores
+                tendencia = "a la baja 📉" if score < score_previo else "al alza 📈"
+                dif = abs(score - score_previo)
+                datos_duros.append(f"[{preg}: {score:.1f}% (Tendencia {tendencia} de {dif:.1f}% vs meses previos)]")
+            else:
+                datos_duros.append(f"[{preg}: {score:.1f}%]")
+        else:
+            datos_duros.append(f"[{preg}: {score:.1f}%]")
+    
+    comentarios = df_entidad['Comentarios'].dropna().tail(3).tolist()
+    return " | ".join(datos_duros), comentarios
+
+@st.cache_data(show_spinner=False, ttl=86400) # Memoria caché de 24 hrs
+def consultar_gemini_cache(prompt_text, api_key_val):
+    genai.configure(api_key=api_key_val)
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        return model.generate_content(prompt_text).text
+    except:
+        try:
+            model = genai.GenerativeModel('gemini-flash-latest')
+            return model.generate_content(prompt_text).text
+        except Exception as e:
+            return f"ERROR_API:{str(e)}"
+
+if api_key:
     st.markdown("""
     <style>
     .ai-gradient-border {
@@ -242,61 +305,49 @@ if api_key:
     </style>
     """, unsafe_allow_html=True)
 
-    def generar_sugerencias_ai(df_filtrado, depto, sector, tienda):
+    def generar_sugerencias_ai(df_completo, depto, sector, tienda):
         nivel = "General (Todas las tiendas)"
         if tienda: nivel = f"Tienda Específica: {tienda[0]}"
         elif sector: nivel = f"Sector: {sector[0]}"
         elif depto: nivel = f"Departamento: {depto[0]}"
 
-        j_keys_ai = list(k_journey.keys())
-        c_keys_ai = list(k_calidad.keys())
-        
-        try:
-            j_bajos = df_filtrado[[f'JOURNEY_{k}' for k in j_keys_ai if f'JOURNEY_{k}' in df_filtrado.columns]].mean().nsmallest(2).to_dict()
-            c_bajos = df_filtrado[[f'CALIDAD_{k}' for k in c_keys_ai if f'CALIDAD_{k}' in df_filtrado.columns]].mean().nsmallest(2).to_dict()
-        except:
-            j_bajos, c_bajos = {}, {}
-            
-        comentarios = df_filtrado['Comentarios'].dropna().tail(3).tolist()
+        # Cargar la Bóveda de Conocimiento y los datos granulares
+        manual_cx = cargar_manual_cx()
+        datos_duros, comentarios = obtener_datos_ia(df_completo, depto, sector, tienda)
 
         prompt = f"""
-        Actúa como un Consultor Retail Senior experto en Customer Experience.
-        Estás analizando la métrica de un tablero de Mystery Shopper a nivel: {nivel}.
+        {manual_cx}
         
-        DATOS DUROS (Calidad/Limpieza - peores áreas): {c_bajos}
-        DATOS BLANDOS (Actitud/Servicio - peores áreas): {j_bajos}
-        ÚLTIMOS COMENTARIOS (Voces reales): {comentarios}
+        ---
+        ESTÁS ANALIZANDO: {nivel}
         
-        INSTRUCCIÓN: Redacta un párrafo corto y fluido (máximo 4 oraciones) dirigido al gerente. 
-        1. Menciona un aspecto técnico/duro a mejorar.
-        2. Menciona un aspecto de habilidades blandas/humanas (cómo hacen sentir al cliente).
-        3. Dame una recomendación de acción inmediata muy específica y de gran valor.
-        Tono: Ejecutivo, empático pero directo. Nada de lenguaje robótico, ni saludos. Ve al grano.
+        DATOS DUROS (Granularidad y Tendencias - Peores parámetros): 
+        {datos_duros}
+        
+        ÚLTIMOS COMENTARIOS (Voz del cliente): 
+        {comentarios}
+        
+        INSTRUCCIÓN ESTRICTA PARA LA REDACCIÓN:
+        Redacta un insight gerencial fluido (máximo 4 a 5 oraciones) usando este orden obligatorio:
+        1. El Diagnóstico (Cuantitativo, Tendencias y Profundidad): Inicia siempre con la data dura. Identifica la fricción más grave. Cruza datos en el tiempo (tendencia) y profundiza en el parámetro específico que causa la caída.
+        2. La Interpretación (Cualitativa/Storytelling): Traduce el número frío a la experiencia humana. ¿Cómo afecta al "momento de la verdad"? Usa léxico CX.
+        3. La Recomendación (Práctica y de Valor): Cierra con una acción operativa y humana muy específica para el gerente de la tienda. ¿Qué debe hacer hoy con su equipo para transformar ese punto de dolor en deleite?
         """
         
-        # Bloque Blindado de Solicitud a la API con Escudo UX
-        try:
-            model = genai.GenerativeModel('gemini-2.5-flash')
-            respuesta = model.generate_content(prompt)
-            return respuesta.text
-        except:
-            try:
-                model = genai.GenerativeModel('gemini-flash-latest')
-                respuesta = model.generate_content(prompt)
-                return respuesta.text
-            except Exception as e:
-                error_msg = str(e)
-                # ESCUDO UX: Si es un error 429 (Límite de cuota gratuita)
-                if "429" in error_msg or "quota" in error_msg.lower():
-                    return "⏳ **stratēgia AI está procesando un alto volumen de datos en este momento.** Por favor, espera unos 30 segundos y vuelve a hacer clic en generar."
-                # ESCUDO UX: Para cualquier otro error técnico
-                else:
-                    return "⚠️ **Consultor AI no disponible temporalmente.** Tuvimos un pequeño contratiempo de conexión, por favor intenta de nuevo."
+        respuesta_cruda = consultar_gemini_cache(prompt, api_key)
+        
+        if respuesta_cruda.startswith("ERROR_API:"):
+            if "429" in respuesta_cruda or "quota" in respuesta_cruda.lower():
+                return "⏳ <b>stratēgia AI está procesando un alto volumen de datos.</b> Por favor, espera unos 30 segundos e intenta generar de nuevo."
+            else:
+                return "⚠️ <b>Consultor AI no disponible temporalmente.</b> Tuvimos un pequeño contratiempo de conexión, por favor intenta de nuevo."
+                
+        return respuesta_cruda
 
-    # Botón en la interfaz
     if st.button("✨ Generar Sugerencias AI para esta vista", type="primary"):
         with st.spinner("Analizando métricas y leyendo entre líneas..."):
-            sugerencia = generar_sugerencias_ai(df_f, f_depto, f_sector, f_tiendas_sel)
+            # OJO: Pasamos el 'df' completo original para poder calcular la historia, no el 'df_f' que está cortado por mes.
+            sugerencia = generar_sugerencias_ai(df, f_depto, f_sector, f_tiendas_sel)
             titulo_lugar = f_tiendas_sel[0] if f_tiendas_sel else (f_sector[0] if f_sector else (f_depto[0] if f_depto else 'Resumen Global'))
             
             st.markdown(f"""
